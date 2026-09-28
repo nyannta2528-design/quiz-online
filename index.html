@@ -1,0 +1,1933 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>選択問題 - マークシート・クイズ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --bg:#F2F5F5;
+    --card:#FFFFFF;
+    --ink:#22272B;
+    --ink-soft:#7C8790;
+    --line:#E1E6E8;
+    --green:#0FA870;
+    --green-dark:#0B8B5C;
+    --green-tint:#E4F7EF;
+    --red:#EF4B42;
+    --red-tint:#FDEAE9;
+    --blue:#2F8FDE;
+    --gold:#F0A63A;
+    --radius:14px;
+    --shadow: 0 1px 2px rgba(20,30,35,.05), 0 4px 14px rgba(20,30,35,.07);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    padding:32px 16px 64px;
+  }
+  .sheet{
+    width:100%;
+    max-width:640px;
+  }
+  .letterhead{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding-bottom:14px;
+    margin-bottom:22px;
+    border-bottom:2px solid var(--line);
+  }
+  .letterhead > div:first-child{display:flex; align-items:center; gap:10px;}
+  .letterhead > div:first-child::before{
+    content:"✓";
+    width:34px; height:34px; flex-shrink:0; border-radius:10px;
+    background:var(--green); color:#fff; font-weight:800; font-size:16px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .letterhead h1{
+    font-family:'M PLUS Rounded 1c', sans-serif;
+    font-weight:800;
+    font-size:clamp(22px,5vw,28px);
+    letter-spacing:.01em;
+    margin:0;
+    color:var(--ink);
+  }
+  .letterhead .en{
+    font-family:'JetBrains Mono', monospace;
+    font-size:10px;
+    letter-spacing:.14em;
+    color:var(--green-dark);
+    text-transform:uppercase;
+    font-weight:700;
+  }
+  .score-badge{
+    font-family:'JetBrains Mono', monospace;
+    font-size:13px;
+    color:var(--ink-soft);
+    text-align:right;
+    line-height:1.5;
+  }
+  .score-badge b{color:var(--green-dark); font-size:18px;}
+
+  .panel{
+    background:var(--card);
+    border:1px solid var(--line);
+    box-shadow:var(--shadow);
+    border-radius:20px;
+    padding:24px;
+    position:relative;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.1em;
+    color:var(--green-dark);
+    text-transform:uppercase;
+    margin:0 0 6px;
+  }
+  h2{
+    font-family:'M PLUS Rounded 1c', sans-serif;
+    font-weight:700;
+    font-size:19px;
+    margin:0 0 18px;
+    color:var(--ink);
+  }
+
+  /* --- Setup screen --- */
+  .cat-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:20px;
+  }
+  .cat-card{
+    border:1.5px solid var(--line);
+    background:#fff;
+    padding:14px 12px;
+    text-align:left;
+    cursor:pointer;
+    border-radius:var(--radius);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    transition:border-color .15s, background .15s, transform .1s;
+    position:relative;
+  }
+  .cat-card:nth-of-type(4n+1) .tab{color:#1B8F63; background:var(--green-tint);}
+  .cat-card:nth-of-type(4n+2) .tab{color:#2F72B8; background:#E6F1FB;}
+  .cat-card:nth-of-type(4n+3) .tab{color:#B8792F; background:#FBF0E1;}
+  .cat-card:nth-of-type(4n+4) .tab{color:#8A4FC9; background:#F2E9FB;}
+  .cat-card .tab{
+    font-family:'JetBrains Mono', monospace;
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:.08em;
+    display:inline-block;
+    padding:2px 8px;
+    border-radius:999px;
+  }
+  .cat-card .name{
+    font-family:'M PLUS Rounded 1c', sans-serif;
+    font-weight:700;
+    font-size:15.5px;
+    margin-top:6px;
+    color:var(--ink);
+  }
+  .cat-card.active{
+    border-color:var(--green);
+    background:var(--green-tint);
+  }
+  .cat-card.active::after{
+    content:"✓"; position:absolute; top:8px; right:8px; width:20px; height:20px;
+    background:var(--green); color:#fff; border-radius:50%; font-size:11px; font-weight:800;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .cat-card:hover{border-color:var(--green);}
+  .cat-card:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
+
+  .row{display:flex; align-items:center; justify-content:space-between; margin:14px 0;}
+  .row label{font-size:13.5px; color:var(--ink-soft);}
+  .segmented{display:flex; border:1.5px solid var(--line); border-radius:999px; overflow:hidden;}
+  .segmented button{
+    border:none; background:#fff; color:var(--ink-soft);
+    font-family:'M PLUS Rounded 1c', sans-serif; font-weight:700; font-size:13px;
+    padding:7px 14px; cursor:pointer; border-left:1px solid var(--line);
+  }
+  .segmented button:first-child{border-left:none;}
+  .segmented button.on{background:var(--green); color:#fff;}
+  .segmented button:focus-visible{outline:2px solid var(--blue); outline-offset:-2px;}
+
+  .toggle{
+    width:42px; height:24px; border-radius:12px; border:1.5px solid var(--line);
+    background:#fff; position:relative; cursor:pointer; flex-shrink:0;
+  }
+  .toggle .dot{
+    position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%;
+    background:var(--ink-soft); transition:transform .15s, background .15s;
+  }
+  .toggle.on{background:var(--green-tint); border-color:var(--green);}
+  .toggle.on .dot{transform:translateX(18px); background:var(--green);}
+
+  textarea.custom-json{
+    width:100%; min-height:110px; font-family:'JetBrains Mono', monospace; font-size:12px;
+    border:1.5px solid var(--line); border-radius:var(--radius); padding:10px; resize:vertical;
+    background:#fff; color:var(--ink);
+  }
+  .hint{font-size:11.5px; color:var(--ink-soft); margin-top:6px; line-height:1.6;}
+  .link-btn{
+    background:none;border:none;color:var(--green-dark);text-decoration:underline;cursor:pointer;
+    font-size:13px;padding:0; font-weight:700;
+  }
+
+  .btn-primary{
+    width:100%; margin-top:20px; padding:14px; border:none; background:var(--green); color:#fff;
+    font-family:'M PLUS Rounded 1c', sans-serif; font-weight:700; font-size:16px; letter-spacing:.02em; cursor:pointer;
+    border-radius:999px; box-shadow:0 2px 0 var(--green-dark), var(--shadow);
+    transition:transform .08s;
+  }
+  .btn-primary:active:not(:disabled){transform:translateY(2px); box-shadow:0 0 0 var(--green-dark);}
+  .btn-primary:disabled{background:#C7CDD1; box-shadow:none; cursor:not-allowed;}
+  .btn-primary:focus-visible, .link-btn:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
+  .btn-secondary{
+    width:100%; margin-top:10px; padding:12px; background:#fff; color:var(--green-dark);
+    border:1.5px solid var(--green); font-family:'M PLUS Rounded 1c',sans-serif; font-weight:700; font-size:14px;
+    cursor:pointer; border-radius:999px;
+  }
+
+  /* --- Quiz screen --- */
+  .progress-row{display:flex; gap:5px; flex-wrap:wrap; margin-bottom:18px;}
+  .dot{
+    width:15px; height:15px; border-radius:5px; border:1.5px solid var(--line); background:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:9px;
+  }
+  .dot.answered{border-color:var(--ink-soft);}
+  .dot.correct{border-color:var(--green); color:#fff; background:var(--green);}
+  .dot.wrong{border-color:var(--red); color:#fff; background:var(--red);}
+
+  .qmeta{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;}
+  .qnum{font-family:'M PLUS Rounded 1c', sans-serif; font-weight:800; font-size:20px; color:var(--ink);}
+  .qnum span{font-family:'JetBrains Mono', monospace; font-weight:500; font-size:13px; color:var(--ink-soft);}
+  .timerbar{height:6px; background:var(--line); border-radius:999px; overflow:hidden; margin-bottom:16px;}
+  .timerbar-fill{height:100%; background:var(--green); width:100%; transform-origin:left;}
+
+  .qtext{font-size:17px; line-height:1.7; margin:14px 0 20px; font-weight:700; color:var(--ink);}
+
+  .choices{display:flex; flex-direction:column; gap:10px;}
+  .choice{
+    display:flex; align-items:center; gap:12px; text-align:left;
+    border:1.5px solid var(--line); background:#fff; border-radius:var(--radius);
+    padding:12px 14px; cursor:pointer; font-family:'Zen Kaku Gothic New', sans-serif; font-size:15px;
+    color:var(--ink); position:relative; transition:border-color .12s, background .12s;
+  }
+  .choice:hover:not(:disabled){border-color:var(--green);}
+  .choice:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
+  .choice .mark{
+    flex-shrink:0; width:30px; height:30px; border-radius:50%; border:1.5px solid var(--line);
+    display:flex; align-items:center; justify-content:center; font-family:'M PLUS Rounded 1c', sans-serif;
+    font-weight:700; font-size:13px; color:var(--ink-soft); background:#fff;
+  }
+  .choice.picked{border-color:var(--green); background:var(--green-tint);}
+  .choice.picked .mark{background:var(--green); color:#fff; border-color:var(--green);}
+  .choice.reveal-correct{border-color:var(--green); background:var(--green-tint);}
+  .choice.reveal-correct .mark{background:var(--green); border-color:var(--green); color:#fff;}
+  .choice.reveal-wrong{border-color:var(--red); background:var(--red-tint); opacity:1;}
+  .choice.reveal-wrong .mark{background:var(--red); border-color:var(--red); color:#fff;}
+  .choice:disabled{cursor:default;}
+
+  .stamp-layer{
+    position:absolute; top:-12px; right:6px; pointer-events:none;
+  }
+  .stamp{
+    width:44px; height:44px; border:none; border-radius:50%;
+    color:#fff; display:flex; align-items:center; justify-content:center;
+    font-family:'M PLUS Rounded 1c', sans-serif; font-size:20px; font-weight:800;
+    background:var(--ink-soft);
+    box-shadow:0 3px 8px rgba(20,30,35,.2);
+    transform:scale(0); opacity:0;
+    animation: stamp-pop .32s cubic-bezier(.2,1.6,.4,1) forwards;
+  }
+  .stamp.stamp-ok{background:var(--green);}
+  .stamp.stamp-ng{background:var(--red);}
+  @keyframes stamp-pop{
+    0%{transform:scale(0); opacity:0;}
+    70%{transform:scale(1.15); opacity:1;}
+    100%{transform:scale(1); opacity:1;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .stamp{animation:none; transform:scale(1); opacity:1;}
+  }
+
+  .qfoot{display:flex; justify-content:flex-end; margin-top:20px;}
+  .next-btn{
+    padding:10px 24px; background:var(--green); color:#fff; border:none; border-radius:999px;
+    font-family:'M PLUS Rounded 1c', sans-serif; font-weight:700; font-size:14.5px; cursor:pointer;
+    box-shadow:0 2px 0 var(--green-dark);
+  }
+  .next-btn:active{transform:translateY(2px); box-shadow:none;}
+  .next-btn:disabled{opacity:0; pointer-events:none;}
+  .next-btn:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
+
+  /* --- Result screen --- */
+  .result-head{text-align:center; position:relative; padding:10px 0 8px;}
+  .result-stamp{
+    display:inline-block; border:5px solid var(--green); color:var(--green); border-radius:50%;
+    width:118px; height:118px; line-height:108px; font-family:'M PLUS Rounded 1c', sans-serif;
+    font-size:22px; font-weight:800; letter-spacing:.02em; background:#fff;
+    box-shadow:var(--shadow);
+    animation: pop-in .4s cubic-bezier(.2,1.6,.4,1);
+  }
+  @keyframes pop-in{
+    0%{transform:scale(0);}
+    70%{transform:scale(1.08);}
+    100%{transform:scale(1);}
+  }
+  @media (prefers-reduced-motion: reduce){ .result-stamp{animation:none;} }
+  .result-score{
+    font-family:'JetBrains Mono', monospace; font-size:14px; color:var(--ink-soft); margin-top:14px;
+  }
+  .result-score b{font-size:32px; color:var(--ink); font-family:'M PLUS Rounded 1c', sans-serif; font-weight:800;}
+  .best{font-size:12px; color:var(--gold); margin-top:4px; font-family:'JetBrains Mono',monospace; font-weight:700;}
+
+  .review{margin-top:24px; display:flex; flex-direction:column; gap:10px;}
+  .review-item{
+    border:1px solid var(--line); border-radius:var(--radius); padding:10px 12px; background:#fff;
+    display:flex; gap:10px; font-size:13.5px; line-height:1.6;
+  }
+  .review-mark{
+    flex-shrink:0; font-family:'M PLUS Rounded 1c', sans-serif; font-weight:800; font-size:15px;
+    width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    color:#fff; margin-top:1px;
+  }
+  .review-item.ok .review-mark{background:var(--green);}
+  .review-item.ng .review-mark{background:var(--red);}
+  .review-item .qline{color:var(--ink);}
+  .review-item .aline{color:var(--ink-soft); margin-top:3px; font-size:12.5px;}
+
+  footer.note{margin-top:20px; text-align:center; font-size:11px; color:var(--ink-soft);}
+  .hidden{display:none !important;}
+
+  /* --- Mode / Room screens --- */
+  .mode-grid{display:flex; flex-direction:column; gap:12px;}
+  .mode-card{
+    display:flex; align-items:center; gap:14px; text-align:left;
+    border:1.5px solid var(--line); background:#fff; border-radius:var(--radius);
+    padding:16px; cursor:pointer; font-family:'Zen Kaku Gothic New', sans-serif;
+    transition:border-color .12s;
+  }
+  .mode-card:hover{border-color:var(--green);}
+  .mode-card:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
+  .mode-card .icon{
+    font-family:'M PLUS Rounded 1c', sans-serif; font-weight:800; font-size:16px; width:44px; height:44px; flex-shrink:0;
+    border-radius:12px; display:flex; align-items:center; justify-content:center;
+    background:var(--green-tint); color:var(--green-dark);
+  }
+  .mode-card .t1{font-family:'M PLUS Rounded 1c', sans-serif; font-weight:700; font-size:15.5px; color:var(--ink);}
+  .mode-card .t2{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+
+  .back-link{
+    display:inline-flex; align-items:center; gap:5px;
+    background:#fff; border:1.5px solid var(--line); color:var(--ink-soft);
+    font-family:'M PLUS Rounded 1c', sans-serif; font-weight:700; font-size:12.5px;
+    cursor:pointer; padding:7px 14px 7px 12px; margin:0 0 16px; border-radius:999px;
+    text-decoration:none; transition:border-color .15s, color .15s, background .15s;
+  }
+  .back-link:hover{border-color:var(--green); color:var(--green-dark); background:var(--green-tint);}
+  .back-link:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
+
+  .room-code-display{
+    text-align:center; margin:8px 0 22px;
+  }
+  .room-code-display .label{font-family:'JetBrains Mono', monospace; font-size:11px; font-weight:700; letter-spacing:.14em; color:var(--ink-soft);}
+  .room-code-display .code{
+    font-family:'JetBrains Mono', monospace; font-weight:700; font-size:38px; letter-spacing:.1em;
+    color:var(--green-dark); background:var(--green-tint); border:2px solid var(--green);
+    display:inline-block; padding:10px 20px; margin-top:8px; border-radius:16px;
+  }
+  .room-status{font-size:12.5px; color:var(--ink-soft); text-align:center; margin-top:8px;}
+
+  .field{margin:14px 0;}
+  .field label{display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:6px;}
+  .field input{
+    width:100%; padding:11px 12px; border:1.5px solid var(--line); border-radius:var(--radius);
+    font-family:'JetBrains Mono', monospace; font-size:16px; letter-spacing:.04em; background:#fff; color:var(--ink);
+  }
+  .field input:focus-visible{outline:2px solid var(--blue);}
+
+  .player-list{display:flex; flex-direction:column; gap:6px; margin:16px 0;}
+  .player-row{
+    display:flex; align-items:center; justify-content:space-between;
+    border:1px solid var(--line); background:#fff; border-radius:var(--radius); padding:9px 12px; font-size:14px;
+  }
+  .player-row .pname{display:flex; align-items:center; gap:8px;}
+  .player-row .pdot{width:8px;height:8px;border-radius:50%;background:var(--green);}
+  .player-row .pscore{font-family:'JetBrains Mono', monospace; color:var(--ink-soft); font-size:13px;}
+  .empty-note{font-size:13px; color:var(--ink-soft); text-align:center; padding:16px 0;}
+
+  .host-answer-count{
+    text-align:center; font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--green-dark); font-weight:700; margin:14px 0;
+  }
+  .choice.static{cursor:default;}
+  .choice.static:hover{border-color:var(--line);}
+  .choice-count{
+    margin-left:auto; font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--ink-soft);
+  }
+
+  .waiting-box{
+    text-align:center; padding:30px 10px; color:var(--ink-soft); font-size:14px; line-height:1.8;
+  }
+  .waiting-box .spinner{
+    width:26px; height:26px; border:2.5px solid var(--line); border-top-color:var(--green); border-radius:50%;
+    margin:0 auto 14px; animation:spin 0.9s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion: reduce){ .waiting-box .spinner{animation:none;} }
+
+  .mini-leaderboard{margin-top:18px;}
+  .mini-leaderboard .lb-row{
+    display:flex; justify-content:space-between; padding:6px 2px; font-size:13px; border-bottom:1px solid var(--line);
+  }
+  .mini-leaderboard .lb-rank{font-family:'JetBrains Mono', monospace; color:var(--ink-soft); width:26px;}
+  .mini-leaderboard-title{
+    font-family:'M PLUS Rounded 1c', sans-serif; font-weight:700; font-size:13px; color:var(--ink-soft);
+    margin:22px 0 6px;
+  }
+
+  /* --- Podium (award ceremony) --- */
+  .podium-wrap{position:relative; margin:6px 0 8px; overflow:hidden;}
+  .podium-title{
+    font-family:'M PLUS Rounded 1c', sans-serif; font-weight:800; font-size:17px; text-align:center;
+    color:var(--ink); margin:0 0 18px; letter-spacing:.02em;
+  }
+  .podium{display:flex; align-items:flex-end; justify-content:center; gap:8px; padding:0 4px;}
+  .podium-place{
+    flex:1; max-width:150px; display:flex; flex-direction:column; align-items:center;
+    opacity:0; transform:translateY(24px); animation:podiumIn .55s cubic-bezier(.2,.9,.3,1.3) forwards;
+  }
+  .podium-place .medal{font-size:30px; line-height:1; margin-bottom:4px; animation:medalPop .6s cubic-bezier(.3,1.4,.4,1) both;}
+  .podium-place.p1 .medal{font-size:36px;}
+  .podium-place .pname{
+    font-family:'M PLUS Rounded 1c', sans-serif; font-weight:700; font-size:13.5px; color:var(--ink);
+    text-align:center; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .podium-place .pscore{
+    font-family:'JetBrains Mono', monospace; font-weight:700; font-size:12.5px; color:var(--ink-soft); margin-bottom:8px;
+  }
+  .podium-place .bar{
+    width:100%; border-radius:12px 12px 4px 4px; display:flex; align-items:flex-start; justify-content:center;
+    padding-top:8px; font-family:'JetBrains Mono', monospace; font-weight:800; color:#fff; box-shadow:var(--shadow);
+  }
+  .podium-place.p1{order:2;}
+  .podium-place.p2{order:1;}
+  .podium-place.p3{order:3;}
+  .podium-place.p1 .bar{height:96px; background:linear-gradient(180deg,#FFCE5C,var(--gold)); font-size:15px;}
+  .podium-place.p2 .bar{height:70px; background:linear-gradient(180deg,#DEE4E8,#AAB4BC); font-size:14px;}
+  .podium-place.p3 .bar{height:52px; background:linear-gradient(180deg,#E3AE84,#C2825A); font-size:14px;}
+  @keyframes podiumIn{to{opacity:1; transform:translateY(0);}}
+  @keyframes medalPop{0%{opacity:0; transform:scale(.2) rotate(-25deg);}70%{opacity:1;}100%{opacity:1; transform:scale(1) rotate(0);}}
+  .drumroll-dots{
+    text-align:center; font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--ink-soft);
+    height:18px; margin-bottom:4px; letter-spacing:.3em;
+  }
+  .confetti-piece{
+    position:absolute; top:-12px; width:7px; height:12px; opacity:.9;
+    animation:confettiFall 2.4s linear forwards; border-radius:1px;
+  }
+  @keyframes confettiFall{
+    0%{transform:translateY(0) rotate(0deg); opacity:1;}
+    100%{transform:translateY(220px) rotate(540deg); opacity:0;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .podium-place{animation:none !important; opacity:1; transform:none;}
+    .podium-place .medal{animation:none !important;}
+    .confetti-piece{display:none;}
+  }
+  .err-text{color:var(--red); font-size:12.5px; margin-top:8px; min-height:1em; font-weight:500;}
+
+  /* --- Question creator --- */
+  .saved-set-list{display:flex; flex-direction:column; gap:6px; margin:12px 0 22px;}
+  .saved-set-row{
+    display:flex; align-items:center; justify-content:space-between;
+    border:1px solid var(--line); background:#fff; border-radius:var(--radius); padding:9px 12px; font-size:13.5px;
+  }
+  .saved-set-row .ssn{font-family:'M PLUS Rounded 1c', sans-serif; font-weight:700; font-size:14px; color:var(--ink);}
+  .saved-set-row .ssc{color:var(--ink-soft); font-size:11.5px; font-family:'JetBrains Mono', monospace; margin-left:6px;}
+  .saved-set-row .del{border:none; background:none; color:var(--red); font-size:12px; cursor:pointer; text-decoration:underline; font-weight:600;}
+  .divider{border:none; border-top:1.5px solid var(--line); margin:20px 0;}
+
+  .draft-list{display:flex; flex-direction:column; gap:8px; margin:14px 0;}
+  .draft-item{
+    border:1px solid var(--line); background:#fff; border-radius:var(--radius); padding:10px 12px; font-size:13px;
+  }
+  .draft-item .dq{font-weight:700; color:var(--ink);}
+  .draft-item .dc{color:var(--ink-soft); margin-top:4px; font-size:12px;}
+  .draft-item .dc b{color:var(--green-dark);}
+  .draft-item .del{border:none; background:none; color:var(--red); font-size:12px; cursor:pointer; text-decoration:underline; float:right; font-weight:600;}
+
+  .choice-row-edit{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+  .choice-row-edit input[type="radio"]{accent-color:var(--green); width:16px; height:16px; flex-shrink:0;}
+  .choice-row-edit input[type="text"]{
+    flex:1; padding:8px 10px; border:1.5px solid var(--line); border-radius:var(--radius); font-size:14px;
+    font-family:'Zen Kaku Gothic New', sans-serif; background:#fff; color:var(--ink);
+  }
+  .choice-row-edit input[type="text"]:focus-visible{outline:2px solid var(--blue);}
+  .remove-choice{
+    border:1.5px solid var(--line); background:#fff; border-radius:var(--radius); width:30px; height:30px;
+    cursor:pointer; color:var(--ink-soft); flex-shrink:0;
+  }
+  .remove-choice:disabled{opacity:.3; cursor:not-allowed;}
+  .remove-choice:focus-visible{outline:2px solid var(--blue);}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="letterhead">
+    <div>
+      <div class="en">Multiple Choice Quiz</div>
+      <h1>選択問題</h1>
+    </div>
+    <div class="score-badge" id="headerScore">スコア <b>—</b></div>
+  </div>
+
+  <!-- MODE SELECT -->
+  <section class="panel" id="screen-mode">
+    <p class="eyebrow">受験方法</p>
+    <h2>受験方法を選んでください</h2>
+    <div class="mode-grid">
+      <button class="mode-card" id="modeSoloBtn">
+        <span class="icon">一</span>
+        <span><span class="t1">ひとりで挑戦</span><br><span class="t2">自分のペースで解答します</span></span>
+      </button>
+      <button class="mode-card" id="modeRoomBtn">
+        <span class="icon">室</span>
+        <span><span class="t1">ルームで対戦</span><br><span class="t2">番号を共有してみんなで同時受験</span></span>
+      </button>
+      <button class="mode-card" id="modeCreateBtn">
+        <span class="icon">作</span>
+        <span><span class="t1">問題を作る</span><br><span class="t2">自分の問題セットを作成・保存</span></span>
+      </button>
+      <button class="mode-card" id="modeCommunityBtn">
+        <span class="icon">共</span>
+        <span><span class="t1">みんなの問題</span><br><span class="t2">投稿された問題セットを探す・取り込む</span></span>
+      </button>
+    </div>
+  </section>
+
+  <!-- COMMUNITY -->
+  <section class="panel hidden" id="screen-community">
+    <button class="back-link" data-back="mode">← 戻る</button>
+    <p class="eyebrow">コミュニティ</p>
+    <h2>みんなが投稿した問題セット</h2>
+    <p class="hint" style="margin:0 0 14px;">他の人が投稿した問題セットの中からランダムに5件表示しています。取り込むとこの端末にも保存され、「問題を作る」画面や出題科目として使えるようになります。特定の問題を探したい場合はIDで検索してください。</p>
+    <div class="field" style="display:flex; gap:8px; align-items:flex-end; margin:0 0 18px;">
+      <div style="flex:1;">
+        <label for="communityIdInput">IDで探す</label>
+        <input type="text" id="communityIdInput" maxlength="6" placeholder="例）AB12CD" style="text-transform:uppercase;">
+      </div>
+      <button class="btn-secondary" id="communityIdSearchBtn" style="width:auto; margin:0; padding:0 20px; height:44px;">探す</button>
+    </div>
+    <p class="err-text" id="communityIdErr"></p>
+    <p class="hint" id="communityLoading">読み込み中…</p>
+    <div class="saved-set-list" id="communityList"></div>
+    <p class="empty-note hidden" id="communityEmpty">まだ投稿された問題セットはありません</p>
+    <p class="err-text" id="communityErr"></p>
+    <button class="btn-secondary" id="communityRefreshBtn" style="margin-top:14px;">べつの5件を見る</button>
+  </section>
+
+  <!-- CREATE QUESTIONS -->
+  <section class="panel hidden" id="screen-create">
+    <button class="back-link" data-back="mode">← 戻る</button>
+    <p class="eyebrow">問題作成</p>
+    <h2>自分だけの問題セットを作る</h2>
+
+    <div id="savedSetsBlock">
+      <p class="hint" style="margin:0 0 8px;">保存済みのセット</p>
+      <div class="saved-set-list" id="savedSetList"></div>
+      <p class="empty-note hidden" id="savedSetEmpty">まだ保存されたセットはありません</p>
+    </div>
+
+    <hr class="divider">
+
+    <div class="field">
+      <label for="setNameInput">セット名</label>
+      <input type="text" id="setNameInput" maxlength="20" placeholder="例）自作クイズ①">
+    </div>
+
+    <button class="link-btn" id="jsonImportToggleBtn">＋ JSONからまとめて読み込む</button>
+    <div id="jsonImportArea" class="hidden">
+      <textarea class="custom-json" id="jsonImportText" placeholder='[{"q":"日本の首都は？","choices":["大阪","京都","東京"],"answer":2}]'></textarea>
+      <p class="hint">配列で複数問。choicesの数は自由（n択に対応）。answerは正解のindex（0始まり）。</p>
+      <button class="btn-secondary" id="jsonImportBtn">リストに読み込む</button>
+      <p class="err-text" id="jsonImportErr"></p>
+    </div>
+
+    <div class="draft-list" id="draftList"></div>
+    <p class="empty-note" id="draftEmpty">まだ問題が追加されていません</p>
+
+    <hr class="divider">
+
+    <div class="field">
+      <label for="draftQText">問題文</label>
+      <input type="text" id="draftQText" maxlength="120" placeholder="例）日本の首都は？">
+    </div>
+    <p class="hint" style="margin:0 0 8px;">選択肢（2〜6個・左のラジオボタンで正解を指定）</p>
+    <div id="draftChoicesWrap"></div>
+    <button class="link-btn" id="addChoiceRowBtn">＋ 選択肢を追加</button>
+    <p class="err-text" id="draftErr"></p>
+    <button class="btn-secondary" id="addQuestionBtn">この問題をリストに追加</button>
+
+    <button class="btn-primary" id="saveSetBtn">セットを保存する</button>
+    <p class="err-text" id="saveSetErr"></p>
+  </section>
+
+  <!-- ROOM CHOICE -->
+  <section class="panel hidden" id="screen-room-choice">
+    <button class="back-link" data-back="mode">← 戻る</button>
+    <p class="eyebrow">ルーム対戦</p>
+    <h2>ホストになりますか？参加しますか？</h2>
+    <div class="mode-grid">
+      <button class="mode-card" id="roomCreateBtn">
+        <span class="icon">host</span>
+        <span><span class="t1">ルームを作成する（ホスト）</span><br><span class="t2">出題を進行し、参加者を管理します</span></span>
+      </button>
+      <button class="mode-card" id="roomJoinBtn">
+        <span class="icon">→</span>
+        <span><span class="t1">ルームに参加する</span><br><span class="t2">番号を入力して参加します</span></span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ROOM: HOST SETUP -->
+  <section class="panel hidden" id="screen-room-host-setup">
+    <button class="back-link" data-back="room-choice">← 戻る</button>
+    <p class="eyebrow">ホスト設定</p>
+    <h2>出題する科目を選んでください</h2>
+    <div class="cat-grid" id="hostCatGrid"></div>
+    <div class="row">
+      <label>出題数</label>
+      <div class="segmented" id="hostCountSeg"></div>
+    </div>
+    <div class="row">
+      <label>制限時間</label>
+      <div class="segmented" id="hostTimeSeg"></div>
+    </div>
+    <div class="field">
+      <label for="hostNameInput">ホスト名（表示用）</label>
+      <input type="text" id="hostNameInput" placeholder="例）進行役" maxlength="12">
+    </div>
+    <button class="btn-primary" id="hostCreateRoomBtn">ルームを作成</button>
+    <p class="err-text" id="hostCreateErr"></p>
+  </section>
+
+  <!-- ROOM: HOST LOBBY -->
+  <section class="panel hidden" id="screen-room-host-lobby">
+    <p class="eyebrow">ロビー（ホスト）</p>
+    <h2>参加者を待っています</h2>
+    <div class="room-code-display">
+      <div class="label">ROOM NUMBER</div>
+      <div class="code" id="hostRoomCode">------</div>
+      <div class="room-status">この番号を参加者に共有してください</div>
+    </div>
+    <div class="player-list" id="hostPlayerList"></div>
+    <p class="empty-note" id="hostLobbyEmpty">まだ参加者がいません</p>
+    <button class="btn-primary" id="hostStartQuizBtn" disabled>クイズ開始</button>
+    <button class="btn-secondary" id="hostCloseRoomBtn">ルームを閉じる</button>
+  </section>
+
+  <!-- ROOM: HOST QUIZ -->
+  <section class="panel hidden" id="screen-room-host-quiz">
+    <div class="qmeta">
+      <div class="qnum">問 <span id="hqCurrent">1</span><span> / <span id="hqTotal">10</span></span></div>
+    </div>
+    <p class="qtext" id="hqText"></p>
+    <div class="choices" id="hqChoicesWrap"></div>
+    <p class="host-answer-count" id="hqAnswerCount"></p>
+    <div class="qfoot"><button class="next-btn" id="hqActionBtn">結果を見る</button></div>
+    <div class="mini-leaderboard hidden" id="hqLeaderboard"></div>
+  </section>
+
+  <!-- ROOM: JOIN -->
+  <section class="panel hidden" id="screen-room-join">
+    <button class="back-link" data-back="room-choice">← 戻る</button>
+    <p class="eyebrow">ルームに参加</p>
+    <h2>ルーム番号を入力してください</h2>
+    <div class="field">
+      <label for="joinCodeInput">ルーム番号（6桁）</label>
+      <input type="text" id="joinCodeInput" inputmode="numeric" maxlength="6" placeholder="123456">
+    </div>
+    <div class="field">
+      <label for="joinNameInput">あなたの名前</label>
+      <input type="text" id="joinNameInput" maxlength="12" placeholder="例）たろう">
+    </div>
+    <button class="btn-primary" id="joinRoomBtn">参加する</button>
+    <p class="err-text" id="joinErr"></p>
+  </section>
+
+  <!-- ROOM: GUEST LOBBY -->
+  <section class="panel hidden" id="screen-room-guest-lobby">
+    <p class="eyebrow">ロビー（参加者）</p>
+    <h2>ホストの開始を待っています</h2>
+    <div class="waiting-box">
+      <div class="spinner"></div>
+      ルーム番号 <b id="guestRoomCodeShow"></b> に参加しました
+    </div>
+    <div class="player-list" id="guestPlayerList"></div>
+  </section>
+
+  <!-- ROOM: GUEST QUIZ -->
+  <section class="panel hidden" id="screen-room-guest-quiz">
+    <div class="qmeta">
+      <div class="qnum">問 <span id="gqCurrent">1</span><span> / <span id="gqTotal">10</span></span></div>
+    </div>
+    <div class="timerbar hidden" id="gqTimerWrap"><div class="timerbar-fill" id="gqTimerFill"></div></div>
+    <p class="qtext" id="gqText"></p>
+    <div class="choices" id="gqChoicesWrap"></div>
+    <div class="waiting-box hidden" id="gqWaiting">
+      <div class="spinner"></div>
+      回答を送信しました。ホストの結果発表をお待ちください
+      <p class="host-answer-count" id="gqAnswerCount"></p>
+    </div>
+    <p class="result-score hidden" id="gqPointsEarned" style="text-align:center; margin:14px 0 0;"></p>
+    <div class="mini-leaderboard hidden" id="gqLeaderboard"></div>
+  </section>
+
+  <!-- ROOM: FINAL RESULT (host + guest share this) -->
+  <section class="panel hidden" id="screen-room-result">
+    <p class="eyebrow">試験終了</p>
+    <h2>最終結果</h2>
+    <div class="podium-wrap" id="roomPodiumWrap"></div>
+    <p class="mini-leaderboard-title hidden" id="roomFinalLeaderboardTitle">全体の順位</p>
+    <div class="mini-leaderboard" id="roomFinalLeaderboard"></div>
+    <button class="btn-primary" id="roomResultBackBtn">科目選択に戻る</button>
+  </section>
+
+  <!-- SETUP -->
+  <section class="panel hidden" id="screen-setup">
+    <button class="back-link" data-back="mode">← 戻る</button>
+    <p class="eyebrow">科目選択</p>
+    <h2>受験する科目を選んでください</h2>
+    <div class="cat-grid" id="catGrid"></div>
+
+    <div class="row">
+      <label>出題数</label>
+      <div class="segmented" id="countSeg"></div>
+    </div>
+    <div class="row">
+      <label>制限時間（1問あたり）</label>
+      <div class="toggle" id="timerToggle" role="switch" aria-checked="false" tabindex="0"><div class="dot"></div></div>
+    </div>
+
+    <button class="btn-primary" id="startBtn">試験開始</button>
+  </section>
+
+  <!-- QUIZ -->
+  <section class="panel hidden" id="screen-quiz">
+    <div class="progress-row" id="progressRow"></div>
+    <div class="timerbar hidden" id="timerBarWrap"><div class="timerbar-fill" id="timerBarFill"></div></div>
+    <div class="qmeta">
+      <div class="qnum">問 <span id="qCurrent">1</span><span> / <span id="qTotal">10</span></span></div>
+    </div>
+    <p class="qtext" id="qText"></p>
+    <div class="choices" id="choicesWrap"></div>
+    <div class="qfoot"><button class="next-btn" id="nextBtn" disabled>次の問題へ</button></div>
+  </section>
+
+  <!-- RESULT -->
+  <section class="panel hidden" id="screen-result">
+    <div class="result-head">
+      <div class="result-stamp" id="resultStamp">合格</div>
+      <div class="result-score"><b id="resultFrac">0 / 0</b><br><span id="resultPct">0%</span></div>
+      <div class="best" id="resultBest"></div>
+    </div>
+    <div class="review" id="reviewList"></div>
+    <button class="btn-primary" id="retryBtn">同じ問題でもう一度</button>
+    <button class="btn-secondary" id="backBtn">科目選択に戻る</button>
+  </section>
+
+  <footer class="note">解答は自動保存されません。自己ベストのみブラウザに保存されます。</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const LETTERS = ["ア","イ","ウ","エ","オ","カ","キ","ク"];
+
+  const BANKS = {
+    general: { name:"一般常識", tab:"GENERAL", questions:[
+      {q:"1年で最も日が長いとされる日を何と呼ぶ？", choices:["夏至","冬至","春分","秋分"], answer:0},
+      {q:"次のうち、七つの海に含まれないものは？", choices:["太平洋","大西洋","インド洋","地中海","南極海"], answer:3},
+      {q:"「井の中の蛙」に続く言葉は？", choices:["大海を知らず","天を仰ぐ","石の上にも三年"], answer:0},
+      {q:"オリンピックが開催される周期は？", choices:["2年","3年","4年","5年"], answer:2},
+      {q:"世界で最も面積が大きい大陸は？", choices:["アフリカ大陸","ユーラシア大陸","北アメリカ大陸","南極大陸"], answer:1},
+      {q:"次のうち、五大栄養素に含まれないものは？", choices:["炭水化物","たんぱく質","脂質","食物繊維","ビタミン"], answer:3},
+      {q:"1ダースはいくつ？", choices:["10","12","15","20"], answer:1},
+      {q:"次のうち、ノーベル賞の部門にないものは？", choices:["物理学賞","文学賞","数学賞","平和賞"], answer:2},
+      {q:"1週間は何日？", choices:["5日","6日","7日","8日"], answer:2},
+      {q:"「一石二鳥」と似た意味のことわざは？", choices:["石橋を叩いて渡る","一挙両得","二兎を追う者は一兎をも得ず","猿も木から落ちる"], answer:1}
+    ]},
+    japan: { name:"日本の雑学", tab:"JAPAN", questions:[
+      {q:"日本の都道府県の数は？", choices:["43","45","47","50"], answer:2},
+      {q:"日本最長の川は？", choices:["利根川","信濃川","石狩川","北上川"], answer:1},
+      {q:"日本の標準時子午線は東経何度？", choices:["120度","125度","135度","140度"], answer:2},
+      {q:"次のうち、日本三名園に含まれないものは？", choices:["兼六園","後楽園","偕楽園","栗林公園"], answer:3},
+      {q:"江戸幕府を開いたのは誰？", choices:["徳川家康","豊臣秀吉","織田信長","徳川吉宗","足利尊氏"], answer:0},
+      {q:"日本で一番高い山は？", choices:["富士山","北岳","槍ヶ岳","穂高岳"], answer:0},
+      {q:"元号「令和」の前の元号は？", choices:["昭和","平成","大正","明治"], answer:1},
+      {q:"次のうち、日本三大祭りに含まれないものは？", choices:["祇園祭","天神祭","ねぶた祭","神田祭"], answer:2}
+    ]},
+    science: { name:"理科", tab:"SCIENCE", questions:[
+      {q:"水の化学式は？", choices:["CO2","H2O","O2","NaCl"], answer:1},
+      {q:"人間の体温を測る単位は？", choices:["カロリー","パスカル","摂氏","ヘルツ"], answer:2},
+      {q:"次のうち、光合成に必要ないものは？", choices:["光","水","二酸化炭素","酸素"], answer:3},
+      {q:"地球から最も近い恒星は？", choices:["太陽","シリウス","北極星","アルタイル"], answer:0},
+      {q:"次のうち、脊椎動物に分類されないものは？", choices:["魚類","鳥類","昆虫類","哺乳類","爬虫類"], answer:2},
+      {q:"音が伝わらないのはどこ？", choices:["空気中","水中","真空中","鉄の中"], answer:2},
+      {q:"元素記号「Fe」が表す物質は？", choices:["金","銀","鉄","銅"], answer:2},
+      {q:"次のうち、力の単位はどれ？", choices:["ジュール","ニュートン","ワット","アンペア"], answer:1}
+    ]}
+  };
+
+  const state = {
+    category:"general",
+    count:10,
+    timerEnabled:false,
+    timePerQ:15,
+    questions:[],
+    idx:0,
+    score:0,
+    answered:false,
+    log:[],
+    timerId:null,
+    customQuestions:null
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const screens = {
+    mode:$("screen-mode"),
+    create:$("screen-create"),
+    setup:$("screen-setup"), quiz:$("screen-quiz"), result:$("screen-result"),
+    "room-choice":$("screen-room-choice"),
+    "room-host-setup":$("screen-room-host-setup"),
+    "room-host-lobby":$("screen-room-host-lobby"),
+    "room-host-quiz":$("screen-room-host-quiz"),
+    "room-join":$("screen-room-join"),
+    "room-guest-lobby":$("screen-room-guest-lobby"),
+    "room-guest-quiz":$("screen-room-guest-quiz"),
+    "room-result":$("screen-room-result"),
+    community:$("screen-community")
+  };
+  function showScreen(name){
+    Object.values(screens).forEach(s=>s.classList.add("hidden"));
+    screens[name].classList.remove("hidden");
+  }
+
+  document.querySelectorAll("[data-back]").forEach(btn=>{
+    btn.addEventListener("click", ()=> showScreen(btn.getAttribute("data-back")));
+  });
+  $("modeSoloBtn").addEventListener("click", ()=>{ renderCatGrid(); showScreen("setup"); });
+  $("modeRoomBtn").addEventListener("click", ()=> showScreen("room-choice"));
+  $("modeCreateBtn").addEventListener("click", ()=>{ initCreateScreen(); showScreen("create"); });
+  $("modeCommunityBtn").addEventListener("click", ()=>{ showScreen("community"); loadCommunityList(); });
+  $("roomCreateBtn").addEventListener("click", ()=>{ renderHostCatGrid(); renderHostCountSeg(); renderHostTimeSeg(); showScreen("room-host-setup"); });
+  $("roomJoinBtn").addEventListener("click", ()=> showScreen("room-join"));
+
+  // ---------- Custom question sets (persisted) ----------
+  const CUSTOM_SETS_KEY = "nquiz-custom-sets";
+
+  function getCustomSets(){
+    try{
+      const raw = localStorage.getItem(CUSTOM_SETS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    }catch(e){ return []; }
+  }
+  function saveCustomSets(sets){
+    try{ localStorage.setItem(CUSTOM_SETS_KEY, JSON.stringify(sets)); }catch(e){}
+  }
+  function combinedBanks(){
+    const combined = Object.assign({}, BANKS);
+    getCustomSets().forEach(set=>{
+      combined["custom-"+set.id] = { name:set.name, tab: set.imported ? "SHARED" : "MY QUIZ", questions:set.questions };
+    });
+    return combined;
+  }
+
+  // ---------- Setup screen ----------
+  function renderCatGrid(){
+    const grid = $("catGrid");
+    grid.innerHTML = "";
+    Object.entries(combinedBanks()).forEach(([key,bank])=>{
+      const btn = document.createElement("button");
+      btn.className = "cat-card" + (state.category===key ? " active":"");
+      btn.innerHTML = `<div class="tab">${bank.tab}</div><div class="name">${bank.name}</div>`;
+      btn.addEventListener("click", ()=>{ state.category = key; renderCatGrid(); });
+      grid.appendChild(btn);
+    });
+  }
+
+  function renderCountSeg(){
+    const seg = $("countSeg");
+    const options = [5,10,15];
+    seg.innerHTML = "";
+    options.forEach(n=>{
+      const b = document.createElement("button");
+      b.textContent = n+"問";
+      if(state.count===n) b.classList.add("on");
+      b.addEventListener("click", ()=>{ state.count=n; renderCountSeg(); });
+      seg.appendChild(b);
+    });
+  }
+
+  const timerToggleEl = $("timerToggle");
+  function renderTimerToggle(){
+    timerToggleEl.classList.toggle("on", state.timerEnabled);
+    timerToggleEl.setAttribute("aria-checked", state.timerEnabled);
+  }
+  timerToggleEl.addEventListener("click", ()=>{ state.timerEnabled=!state.timerEnabled; renderTimerToggle(); });
+  timerToggleEl.addEventListener("keydown", (e)=>{
+    if(e.key===" " || e.key==="Enter"){ e.preventDefault(); state.timerEnabled=!state.timerEnabled; renderTimerToggle(); }
+  });
+
+  $("startBtn").addEventListener("click", startQuiz);
+
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]]=[a[j],a[i]];
+    }
+    return a;
+  }
+
+  function startQuiz(){
+    const pool = combinedBanks()[state.category].questions;
+    state.questions = shuffle(pool).slice(0, Math.min(state.count, pool.length));
+    state.idx = 0;
+    state.score = 0;
+    state.log = [];
+    showScreen("quiz");
+    renderProgress();
+    renderQuestion();
+  }
+
+  // ---------- Quiz screen ----------
+  function renderProgress(){
+    const row = $("progressRow");
+    row.innerHTML = "";
+    state.questions.forEach((_,i)=>{
+      const d = document.createElement("div");
+      d.className = "dot";
+      d.id = "dot-"+i;
+      row.appendChild(d);
+    });
+    $("qTotal").textContent = state.questions.length;
+  }
+
+  function clearTimer(){
+    if(state.timerId){ clearInterval(state.timerId); state.timerId=null; }
+  }
+
+  function renderQuestion(){
+    clearTimer();
+    state.answered = false;
+    const q = state.questions[state.idx];
+    $("qCurrent").textContent = state.idx+1;
+    $("qText").textContent = q.q;
+    $("nextBtn").disabled = true;
+
+    const wrap = $("choicesWrap");
+    wrap.innerHTML = "";
+    q.choices.forEach((choiceText, i)=>{
+      const btn = document.createElement("button");
+      btn.className = "choice";
+      btn.innerHTML = `<span class="mark">${LETTERS[i]||i+1}</span><span>${choiceText}</span>`;
+      btn.addEventListener("click", ()=> selectChoice(i));
+      wrap.appendChild(btn);
+    });
+
+    const timerWrap = $("timerBarWrap");
+    if(state.timerEnabled){
+      timerWrap.classList.remove("hidden");
+      const fill = $("timerBarFill");
+      fill.style.transition = "none";
+      fill.style.width = "100%";
+      void fill.offsetWidth;
+      let remaining = state.timePerQ * 10;
+      const total = remaining;
+      state.timerId = setInterval(()=>{
+        remaining -= 1;
+        fill.style.transition = "width .1s linear";
+        fill.style.width = (remaining/total*100)+"%";
+        if(remaining<=0){
+          clearTimer();
+          if(!state.answered) selectChoice(-1);
+        }
+      }, 100);
+    }else{
+      timerWrap.classList.add("hidden");
+    }
+  }
+
+  function selectChoice(i){
+    if(state.answered) return;
+    state.answered = true;
+    clearTimer();
+    const q = state.questions[state.idx];
+    const correct = i === q.answer;
+    if(correct) state.score++;
+
+    state.log.push({ q: q.q, choices:q.choices, picked:i, answer:q.answer, correct });
+
+    const buttons = Array.from($("choicesWrap").children);
+    buttons.forEach((b,idx)=>{
+      b.disabled = true;
+      if(idx===q.answer) b.classList.add("reveal-correct");
+      else if(idx===i) b.classList.add("reveal-wrong");
+    });
+
+    const stampHost = buttons[i>=0?i:q.answer] || buttons[q.answer];
+    const layer = document.createElement("div");
+    layer.className = "stamp-layer";
+    const stamp = document.createElement("div");
+    stamp.className = "stamp " + (correct ? "stamp-ok" : "stamp-ng");
+    stamp.textContent = correct ? "正" : "誤";
+    layer.appendChild(stamp);
+    stampHost.style.position = "relative";
+    stampHost.appendChild(layer);
+
+    const dot = $("dot-"+state.idx);
+    dot.classList.add("answered", correct?"correct":"wrong");
+    dot.textContent = correct ? "◯" : "✕";
+
+    updateHeaderScore();
+    $("nextBtn").disabled = false;
+  }
+
+  function updateHeaderScore(){
+    $("headerScore").innerHTML = `スコア <b>${state.score} / ${state.idx + (state.answered?1:0)}</b>`;
+  }
+
+  $("nextBtn").addEventListener("click", ()=>{
+    if(state.idx < state.questions.length-1){
+      state.idx++;
+      renderQuestion();
+    }else{
+      endQuiz();
+    }
+  });
+
+  // ---------- Result screen ----------
+  function bestKey(){ return "nquiz-best-" + (state.category||"custom"); }
+
+  function endQuiz(){
+    clearTimer();
+    const total = state.questions.length;
+    const pct = Math.round(state.score/total*100);
+    $("resultFrac").textContent = `${state.score} / ${total}`;
+    $("resultPct").textContent = `正答率 ${pct}%`;
+    $("resultStamp").textContent = pct>=70 ? "合格" : "再挑戦";
+    $("resultStamp").style.borderColor = pct>=70 ? "var(--green)" : "var(--red)";
+    $("resultStamp").style.color = pct>=70 ? "var(--green)" : "var(--red)";
+
+    let best = Number(localStorage.getItem(bestKey()) || 0);
+    if(pct > best){
+      best = pct;
+      localStorage.setItem(bestKey(), String(best));
+    }
+    $("resultBest").textContent = `自己ベスト ${best}%`;
+
+    const list = $("reviewList");
+    list.innerHTML = "";
+    state.log.forEach((item, i)=>{
+      const row = document.createElement("div");
+      row.className = "review-item " + (item.correct ? "ok":"ng");
+      const pickedText = item.picked>=0 ? item.choices[item.picked] : "(未回答)";
+      row.innerHTML = `
+        <div class="review-mark">${item.correct?"◯":"✕"}</div>
+        <div>
+          <div class="qline">問${i+1}. ${item.q}</div>
+          <div class="aline">あなたの解答: ${pickedText}　${item.correct?"":"／ 正解: "+item.choices[item.answer]}</div>
+        </div>`;
+      list.appendChild(row);
+    });
+
+    showScreen("result");
+  }
+
+  $("retryBtn").addEventListener("click", ()=>{
+    state.questions = shuffle(state.questions);
+    state.idx = 0; state.score = 0; state.log = [];
+    showScreen("quiz");
+    renderProgress();
+    renderQuestion();
+  });
+
+  $("backBtn").addEventListener("click", ()=>{
+    $("headerScore").innerHTML = "スコア <b>—</b>";
+    showScreen("setup");
+  });
+
+  // ================= ROOM (multiplayer) MODE =================
+  const room = {
+    isHost:false,
+    peer:null,
+    code:null,
+    hostName:"",
+    myName:"",
+    hostConn:null,           // guest's connection to host
+    connections:new Map(),   // host: peerId -> {conn, name, score}
+    category:"general",
+    count:10,
+    questions:[],
+    idx:0,
+    answers:new Map(),       // host: peerId -> {choiceIndex}
+    timeLimit:15
+  };
+
+  function renderHostCatGrid(){
+    const grid = $("hostCatGrid");
+    grid.innerHTML = "";
+    Object.entries(combinedBanks()).forEach(([key,bank])=>{
+      const btn = document.createElement("button");
+      btn.className = "cat-card" + (room.category===key ? " active":"");
+      btn.innerHTML = `<div class="tab">${bank.tab}</div><div class="name">${bank.name}</div>`;
+      btn.addEventListener("click", ()=>{ room.category = key; renderHostCatGrid(); });
+      grid.appendChild(btn);
+    });
+  }
+  function renderHostCountSeg(){
+    const seg = $("hostCountSeg");
+    const options = [5,10,15];
+    seg.innerHTML = "";
+    options.forEach(n=>{
+      const b = document.createElement("button");
+      b.textContent = n+"問";
+      if(room.count===n) b.classList.add("on");
+      b.addEventListener("click", ()=>{ room.count=n; renderHostCountSeg(); });
+      seg.appendChild(b);
+    });
+  }
+
+  function renderHostTimeSeg(){
+    const seg = $("hostTimeSeg");
+    const options = [10,15,20,30];
+    seg.innerHTML = "";
+    options.forEach(n=>{
+      const b = document.createElement("button");
+      b.textContent = n+"秒";
+      if(room.timeLimit===n) b.classList.add("on");
+      b.addEventListener("click", ()=>{ room.timeLimit=n; renderHostTimeSeg(); });
+      seg.appendChild(b);
+    });
+  }
+
+  function genRoomCode(){ return String(Math.floor(100000 + Math.random()*900000)); }
+
+  function broadcast(msg){
+    room.connections.forEach(p=>{ try{ p.conn.send(msg); }catch(e){} });
+  }
+
+  function renderHostPlayerList(){
+    const list = $("hostPlayerList");
+    list.innerHTML = "";
+    const players = Array.from(room.connections.values());
+    $("hostLobbyEmpty").classList.toggle("hidden", players.length>0);
+    players.forEach(p=>{
+      const row = document.createElement("div");
+      row.className = "player-row";
+      row.innerHTML = `<span class="pname"><span class="pdot"></span>${escapeHtml(p.name)}</span>`;
+      list.appendChild(row);
+    });
+    $("hostStartQuizBtn").disabled = players.length===0;
+  }
+
+  function escapeHtml(s){
+    const d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function broadcastLobby(){
+    const names = Array.from(room.connections.values()).map(p=>p.name);
+    broadcast({type:"lobby", host:room.hostName, players:names});
+  }
+
+  // ---- Host: create room ----
+  function createRoom(attempt){
+    attempt = attempt || 1;
+    const errEl = $("hostCreateErr");
+    const btn = $("hostCreateRoomBtn");
+    errEl.textContent = "";
+
+    if(typeof Peer === "undefined"){
+      errEl.textContent = "通信ライブラリの読み込みに失敗しました。インターネット接続を確認し、ページを再読み込みしてください。";
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "ルームを作成中…";
+    function resetBtn(){ btn.disabled = false; btn.textContent = "ルームを作成"; }
+
+    room.hostName = $("hostNameInput").value.trim() || "ホスト";
+    const code = genRoomCode();
+    let peer;
+    try{
+      peer = new Peer("nquiz-"+code, {debug:0});
+    }catch(e){
+      resetBtn();
+      errEl.textContent = "ルームを作成できませんでした。通信環境をご確認ください。";
+      return;
+    }
+
+    const timeoutId = setTimeout(()=>{
+      try{ peer.destroy(); }catch(e){}
+      resetBtn();
+      errEl.textContent = "接続がタイムアウトしました。社内ネットワークやVPN、広告ブロッカーなどが原因の場合があります。別のネットワーク（モバイル回線など）でもお試しください。";
+    }, 10000);
+
+    peer.on("open", ()=>{
+      clearTimeout(timeoutId);
+      resetBtn();
+      room.isHost = true;
+      room.peer = peer;
+      room.code = code;
+      room.connections.clear();
+      $("hostRoomCode").textContent = code;
+      renderHostPlayerList();
+      showScreen("room-host-lobby");
+    });
+    peer.on("connection", (conn)=>{
+      conn.on("open", ()=>{});
+      conn.on("data", (data)=> handleHostMessage(conn, data));
+      conn.on("close", ()=>{
+        room.connections.delete(conn.peer);
+        renderHostPlayerList();
+        broadcastLobby();
+      });
+    });
+    peer.on("error", (err)=>{
+      clearTimeout(timeoutId);
+      if(err.type==="unavailable-id" && attempt<5){
+        peer.destroy();
+        createRoom(attempt+1);
+      }else{
+        resetBtn();
+        errEl.textContent = "ルームを作成できませんでした（"+err.type+"）。通信環境をご確認ください。";
+      }
+    });
+  }
+  $("hostCreateRoomBtn").addEventListener("click", ()=> createRoom());
+
+  $("hostCloseRoomBtn").addEventListener("click", ()=>{
+    if(room.peer){ try{ room.peer.destroy(); }catch(e){} }
+    room.connections.clear();
+    room.peer = null; room.isHost=false;
+    showScreen("room-choice");
+  });
+
+  function handleHostMessage(conn, data){
+    if(data.type==="join"){
+      room.connections.set(conn.peer, {conn, name:(data.name||"ゲスト").slice(0,12), score:0});
+      renderHostPlayerList();
+      broadcastLobby();
+    }else if(data.type==="answer"){
+      if(!room.answers.has(conn.peer)){
+        const elapsedMs = typeof data.elapsedMs==="number" ? data.elapsedMs : room.timeLimit*1000;
+        room.answers.set(conn.peer, {choiceIndex:data.choiceIndex, elapsedMs});
+        updateHostAnswerCount();
+      }
+    }
+  }
+
+  $("hostStartQuizBtn").addEventListener("click", ()=>{
+    const pool = combinedBanks()[room.category].questions;
+    room.questions = shuffle(pool).slice(0, Math.min(room.count, pool.length));
+    room.idx = 0;
+    room.connections.forEach(p=> p.score = 0);
+    showScreen("room-host-quiz");
+    showHostQuestion();
+  });
+
+  function showHostQuestion(){
+    room.answers.clear();
+    const q = room.questions[room.idx];
+    $("hqCurrent").textContent = room.idx+1;
+    $("hqTotal").textContent = room.questions.length;
+    $("hqText").textContent = q.q;
+    $("hqLeaderboard").classList.add("hidden");
+    const wrap = $("hqChoicesWrap");
+    wrap.innerHTML = "";
+    q.choices.forEach((c,i)=>{
+      const d = document.createElement("div");
+      d.className = "choice static";
+      d.innerHTML = `<span class="mark">${LETTERS[i]||i+1}</span><span>${escapeHtml(c)}</span>`;
+      wrap.appendChild(d);
+    });
+    updateHostAnswerCount();
+    const btn = $("hqActionBtn");
+    btn.textContent = "結果を見る";
+    btn.onclick = revealHostQuestion;
+    broadcast({type:"question", index:room.idx, total:room.questions.length, q:q.q, choices:q.choices, timeLimit:room.timeLimit});
+  }
+
+  function updateHostAnswerCount(){
+    const total = room.connections.size;
+    $("hqAnswerCount").textContent = `${room.answers.size} / ${total} 人が回答済み`;
+    broadcast({type:"answerCount", answered:room.answers.size, total});
+  }
+
+  const MAX_PTS = 1000, MIN_PTS = 100;
+  function calcPoints(correct, elapsedMs, timeLimitMs){
+    if(!correct) return 0;
+    const clamped = Math.min(Math.max(elapsedMs,0), timeLimitMs);
+    const ratio = clamped / timeLimitMs;
+    return Math.round(MAX_PTS - (MAX_PTS-MIN_PTS)*ratio);
+  }
+
+  function revealHostQuestion(){
+    const q = room.questions[room.idx];
+    const timeLimitMs = room.timeLimit*1000;
+    room.connections.forEach((p, peerId)=>{
+      const ans = room.answers.get(peerId);
+      const picked = ans ? ans.choiceIndex : -1;
+      const correct = picked === q.answer;
+      const pts = calcPoints(correct, ans ? ans.elapsedMs : timeLimitMs, timeLimitMs);
+      p.score += pts;
+      const conn = p.conn;
+      try{
+        conn.send({type:"reveal", correctIndex:q.answer, correct, pointsEarned:pts, leaderboard:buildLeaderboard()});
+      }catch(e){}
+    });
+    const wrap = $("hqChoicesWrap");
+    Array.from(wrap.children).forEach((el,i)=>{
+      if(i===q.answer) el.classList.add("reveal-correct");
+    });
+    renderMiniLeaderboard($("hqLeaderboard"), buildLeaderboard());
+    $("hqLeaderboard").classList.remove("hidden");
+
+    const btn = $("hqActionBtn");
+    const isLast = room.idx >= room.questions.length-1;
+    btn.textContent = isLast ? "最終結果を発表" : "次の問題へ";
+    btn.onclick = isLast ? finishRoomQuiz : ()=>{ room.idx++; showHostQuestion(); };
+  }
+
+  function buildLeaderboard(){
+    return Array.from(room.connections.values())
+      .map(p=>({name:p.name, score:p.score}))
+      .sort((a,b)=> b.score - a.score);
+  }
+
+  function renderMiniLeaderboard(el, lb, startRank){
+    startRank = startRank || 1;
+    el.innerHTML = "";
+    lb.forEach((p,i)=>{
+      const row = document.createElement("div");
+      row.className = "lb-row";
+      row.innerHTML = `<span><span class="lb-rank">${startRank+i}位</span>${escapeHtml(p.name)}</span><span>${p.score}点</span>`;
+      el.appendChild(row);
+    });
+  }
+
+  function renderPodium(el, lb){
+    el.innerHTML = "";
+    const top3 = lb.slice(0,3);
+    if(top3.length===0) return;
+    const title = document.createElement("p");
+    title.className = "podium-title";
+    title.textContent = "🏆 表彰式 🏆";
+    el.appendChild(title);
+    const podium = document.createElement("div");
+    podium.className = "podium";
+    const medals = ["🥇","🥈","🥉"];
+    // 3位→2位→1位の順に、一人ずつ間を置いて登場させる
+    const revealDelay = {2:0.1, 1:1.3, 0:2.6};
+    [1,0,2].forEach(idx=>{
+      if(!top3[idx]) return;
+      const p = top3[idx];
+      const delay = revealDelay[idx];
+      const place = document.createElement("div");
+      place.className = `podium-place p${idx+1}`;
+      place.style.animationDelay = delay+"s";
+      place.innerHTML = `<span class="medal" style="animation-delay:${(delay+0.35)}s">${medals[idx]}</span>
+        <span class="pname">${escapeHtml(p.name)}</span>
+        <span class="pscore">${p.score}点</span>
+        <div class="bar">${idx+1}位</div>`;
+      podium.appendChild(place);
+    });
+    el.appendChild(podium);
+    const lastDelay = Math.max(...top3.map((_,i)=> revealDelay[i] ?? 0));
+    setTimeout(()=> spawnConfetti(el), (lastDelay+0.9)*1000);
+  }
+
+  function spawnConfetti(el){
+    const colors = ["#F0A63A","#0FA870","#2F8FDE","#EF4B42","#8A4FC9"];
+    for(let i=0;i<24;i++){
+      const piece = document.createElement("span");
+      piece.className = "confetti-piece";
+      piece.style.left = (Math.random()*100)+"%";
+      piece.style.background = colors[Math.floor(Math.random()*colors.length)];
+      piece.style.animationDelay = (Math.random()*0.5)+"s";
+      piece.style.animationDuration = (1.8+Math.random()*1.2)+"s";
+      el.appendChild(piece);
+    }
+    setTimeout(()=>{ el.querySelectorAll(".confetti-piece").forEach(n=>n.remove()); }, 3200);
+  }
+
+  function showRoomResult(lb){
+    const list = lb.length ? lb : [{name:room.hostName, score:0}];
+    renderPodium($("roomPodiumWrap"), list);
+    const rest = list.slice(3);
+    $("roomFinalLeaderboardTitle").classList.toggle("hidden", rest.length===0);
+    renderMiniLeaderboard($("roomFinalLeaderboard"), rest, 4);
+    showScreen("room-result");
+  }
+
+  function finishRoomQuiz(){
+    const lb = buildLeaderboard();
+    broadcast({type:"end", leaderboard:lb});
+    showRoomResult(lb);
+  }
+
+  $("roomResultBackBtn").addEventListener("click", ()=>{
+    if(room.peer){ try{ room.peer.destroy(); }catch(e){} }
+    if(room.hostConn){ try{ room.hostConn.close(); }catch(e){} }
+    room.connections.clear();
+    room.peer = null; room.hostConn = null; room.isHost=false;
+    showScreen("mode");
+  });
+
+  // ---- Guest: join room ----
+  $("joinRoomBtn").addEventListener("click", ()=>{
+    const code = $("joinCodeInput").value.trim();
+    const name = $("joinNameInput").value.trim();
+    const errEl = $("joinErr");
+    const btn = $("joinRoomBtn");
+    errEl.textContent = "";
+    if(!/^\d{6}$/.test(code)){ errEl.textContent = "6桁の番号を入力してください。"; return; }
+    if(!name){ errEl.textContent = "名前を入力してください。"; return; }
+
+    if(typeof Peer === "undefined"){
+      errEl.textContent = "通信ライブラリの読み込みに失敗しました。インターネット接続を確認し、ページを再読み込みしてください。";
+      return;
+    }
+
+    room.myName = name.slice(0,12);
+    room.isHost = false;
+    btn.disabled = true;
+    btn.textContent = "接続中…";
+    function resetBtn(){ btn.disabled = false; btn.textContent = "参加する"; }
+
+    let peer;
+    try{
+      peer = new Peer(undefined, {debug:0});
+    }catch(e){
+      resetBtn();
+      errEl.textContent = "接続を開始できませんでした。"; return;
+    }
+    let opened = false;
+    const timeoutId = setTimeout(()=>{
+      if(!opened){
+        resetBtn();
+        errEl.textContent = "ルームが見つかりませんでした。番号のご確認、または通信環境（社内Wi-Fi・VPN・広告ブロッカー等）をご確認ください。";
+        try{ peer.destroy(); }catch(e){}
+      }
+    }, 8000);
+    peer.on("open", ()=>{
+      room.peer = peer;
+      const conn = peer.connect("nquiz-"+code, {reliable:true});
+      conn.on("open", ()=>{
+        opened = true;
+        clearTimeout(timeoutId);
+        resetBtn();
+        room.hostConn = conn;
+        room.code = code;
+        conn.send({type:"join", name:room.myName});
+        $("guestRoomCodeShow").textContent = code;
+        showScreen("room-guest-lobby");
+      });
+      conn.on("data", (data)=> handleGuestMessage(data));
+      conn.on("close", ()=>{
+        if(opened) alert("ホストとの接続が切断されました。");
+      });
+    });
+    peer.on("error", (err)=>{
+      clearTimeout(timeoutId);
+      resetBtn();
+      errEl.textContent = "接続できませんでした（"+err.type+"）。番号や通信環境をご確認ください。";
+    });
+  });
+
+  let gqTimerId = null;
+  let questionReceivedAt = 0;
+  function handleGuestMessage(data){
+    if(data.type==="lobby"){
+      const list = $("guestPlayerList");
+      list.innerHTML = "";
+      (data.players||[]).forEach(n=>{
+        const row = document.createElement("div");
+        row.className = "player-row";
+        row.innerHTML = `<span class="pname"><span class="pdot"></span>${escapeHtml(n)}</span>`;
+        list.appendChild(row);
+      });
+    }else if(data.type==="question"){
+      showGuestQuestion(data);
+    }else if(data.type==="reveal"){
+      showGuestReveal(data);
+    }else if(data.type==="answerCount"){
+      const el = $("gqAnswerCount");
+      if(el) el.textContent = `${data.answered} / ${data.total} 人が回答済み`;
+    }else if(data.type==="end"){
+      showRoomResult(data.leaderboard || []);
+    }
+  }
+
+  function showGuestQuestion(data){
+    if(gqTimerId){ clearInterval(gqTimerId); gqTimerId=null; }
+    questionReceivedAt = Date.now();
+    $("gqCurrent").textContent = data.index+1;
+    $("gqTotal").textContent = data.total;
+    $("gqText").textContent = data.q;
+    $("gqWaiting").classList.add("hidden");
+    $("gqAnswerCount").textContent = "";
+    $("gqPointsEarned").classList.add("hidden");
+    $("gqLeaderboard").classList.add("hidden");
+    const wrap = $("gqChoicesWrap");
+    wrap.innerHTML = "";
+    wrap.classList.remove("hidden");
+    data.choices.forEach((c,i)=>{
+      const btn = document.createElement("button");
+      btn.className = "choice";
+      btn.innerHTML = `<span class="mark">${LETTERS[i]||i+1}</span><span>${escapeHtml(c)}</span>`;
+      btn.addEventListener("click", ()=>{
+        Array.from(wrap.children).forEach(b=>b.disabled=true);
+        btn.classList.add("picked");
+        const elapsedMs = Date.now() - questionReceivedAt;
+        if(room.hostConn){ try{ room.hostConn.send({type:"answer", choiceIndex:i, elapsedMs}); }catch(e){} }
+        if(gqTimerId){ clearInterval(gqTimerId); gqTimerId=null; }
+        wrap.classList.add("hidden");
+        $("gqWaiting").classList.remove("hidden");
+      });
+      wrap.appendChild(btn);
+    });
+    showScreen("room-guest-quiz");
+
+    const timerWrap = $("gqTimerWrap");
+    if(data.timeLimit){
+      timerWrap.classList.remove("hidden");
+      const fill = $("gqTimerFill");
+      fill.style.transition = "none"; fill.style.width="100%";
+      void fill.offsetWidth;
+      let remaining = data.timeLimit*10;
+      const total = remaining;
+      gqTimerId = setInterval(()=>{
+        remaining -= 1;
+        fill.style.transition = "width .1s linear";
+        fill.style.width = (remaining/total*100)+"%";
+        if(remaining<=0){ clearInterval(gqTimerId); gqTimerId=null; }
+      }, 100);
+    }else{
+      timerWrap.classList.add("hidden");
+    }
+  }
+
+  function showGuestReveal(data){
+    $("gqWaiting").classList.add("hidden");
+    const wrap = $("gqChoicesWrap");
+    wrap.classList.remove("hidden");
+    Array.from(wrap.children).forEach((b,i)=>{
+      b.disabled = true;
+      const wasPicked = b.classList.contains("picked");
+      b.classList.remove("picked");
+      if(i===data.correctIndex){
+        b.classList.add("reveal-correct");
+      }else if(wasPicked){
+        b.classList.add("reveal-wrong");
+      }
+    });
+    const ptsEl = $("gqPointsEarned");
+    if(typeof data.pointsEarned === "number"){
+      ptsEl.textContent = data.pointsEarned>0 ? `+${data.pointsEarned} pt 獲得！` : "0 pt";
+      ptsEl.style.color = data.pointsEarned>0 ? "var(--green)" : "var(--red)";
+      ptsEl.classList.remove("hidden");
+    }
+    renderMiniLeaderboard($("gqLeaderboard"), data.leaderboard);
+    $("gqLeaderboard").classList.remove("hidden");
+  }
+
+  // ================= QUESTION CREATOR =================
+  let draftQuestions = [];
+  let editingSetId = null;
+
+  function initCreateScreen(){
+    draftQuestions = [];
+    editingSetId = null;
+    $("setNameInput").value = "";
+    $("draftQText").value = "";
+    $("draftErr").textContent = "";
+    $("saveSetErr").textContent = "";
+    $("jsonImportText").value = "";
+    $("jsonImportErr").textContent = "";
+    $("jsonImportArea").classList.add("hidden");
+    $("draftChoicesWrap").innerHTML = "";
+    addChoiceRow();
+    addChoiceRow();
+    renderDraftList();
+    renderSavedSetList();
+    $("saveSetBtn").textContent = "セットを保存する";
+  }
+
+  $("jsonImportToggleBtn").addEventListener("click", ()=>{
+    $("jsonImportArea").classList.toggle("hidden");
+  });
+
+  $("jsonImportBtn").addEventListener("click", ()=>{
+    const errEl = $("jsonImportErr");
+    errEl.textContent = "";
+    const raw = $("jsonImportText").value.trim();
+    if(!raw){ errEl.textContent = "JSONを入力してください。"; return; }
+    let arr;
+    try{
+      arr = JSON.parse(raw);
+      if(!Array.isArray(arr) || !arr.length) throw new Error();
+      arr.forEach(q=>{
+        if(typeof q.q!=="string" || !Array.isArray(q.choices) || q.choices.length<2 || q.choices.length>6 || typeof q.answer!=="number"){
+          throw new Error();
+        }
+      });
+    }catch(e){
+      errEl.textContent = "JSONの形式が正しくありません。例を参考にしてください。";
+      return;
+    }
+    arr.forEach(q=> draftQuestions.push({ q:q.q, choices:q.choices.slice(), answer:q.answer }));
+    renderDraftList();
+    $("jsonImportText").value = "";
+    $("jsonImportArea").classList.add("hidden");
+  });
+
+  function addChoiceRow(){
+    const wrap = $("draftChoicesWrap");
+    if(wrap.children.length >= 6) return;
+    const row = document.createElement("div");
+    row.className = "choice-row-edit";
+    const radioId = "cr-"+Math.random().toString(36).slice(2,8);
+    row.innerHTML = `<input type="radio" name="draftCorrect" id="${radioId}">
+      <input type="text" class="choice-text" maxlength="60" placeholder="選択肢を入力">
+      <button type="button" class="remove-choice" title="この選択肢を削除">×</button>`;
+    row.querySelector(".remove-choice").addEventListener("click", ()=>{
+      if(wrap.children.length > 2){ row.remove(); updateChoiceRowState(); }
+    });
+    wrap.appendChild(row);
+    updateChoiceRowState();
+  }
+
+  function updateChoiceRowState(){
+    const wrap = $("draftChoicesWrap");
+    const rows = Array.from(wrap.children);
+    rows.forEach(r=> r.querySelector(".remove-choice").disabled = rows.length<=2);
+    $("addChoiceRowBtn").disabled = rows.length>=6;
+    $("addChoiceRowBtn").style.opacity = rows.length>=6 ? .4 : 1;
+  }
+
+  $("addChoiceRowBtn").addEventListener("click", addChoiceRow);
+
+  $("addQuestionBtn").addEventListener("click", ()=>{
+    const qText = $("draftQText").value.trim();
+    $("draftErr").textContent = "";
+    const rows = Array.from($("draftChoicesWrap").children);
+    const choices = rows.map(r=> r.querySelector(".choice-text").value.trim());
+    const correctRowIndex = rows.findIndex(r=> r.querySelector('input[type="radio"]').checked);
+
+    if(!qText){ $("draftErr").textContent = "問題文を入力してください。"; return; }
+    if(choices.some(c=>!c)){ $("draftErr").textContent = "すべての選択肢を入力してください。"; return; }
+    if(correctRowIndex === -1){ $("draftErr").textContent = "正解をラジオボタンで選択してください。"; return; }
+
+    draftQuestions.push({ q:qText, choices, answer:correctRowIndex });
+    renderDraftList();
+
+    $("draftQText").value = "";
+    $("draftChoicesWrap").innerHTML = "";
+    addChoiceRow(); addChoiceRow();
+    $("draftQText").focus();
+  });
+
+  function renderDraftList(){
+    const list = $("draftList");
+    list.innerHTML = "";
+    $("draftEmpty").classList.toggle("hidden", draftQuestions.length>0);
+    draftQuestions.forEach((q,i)=>{
+      const item = document.createElement("div");
+      item.className = "draft-item";
+      const choicesHtml = q.choices.map((c,ci)=> ci===q.answer ? `<b>${escapeHtml(c)}</b>` : escapeHtml(c)).join(" / ");
+      item.innerHTML = `<button class="del" data-i="${i}">削除</button>
+        <div class="dq">問${i+1}. ${escapeHtml(q.q)}</div>
+        <div class="dc">${choicesHtml}</div>`;
+      item.querySelector(".del").addEventListener("click", ()=>{
+        draftQuestions.splice(i,1);
+        renderDraftList();
+      });
+      list.appendChild(item);
+    });
+  }
+
+  $("saveSetBtn").addEventListener("click", ()=>{
+    const name = $("setNameInput").value.trim();
+    $("saveSetErr").textContent = "";
+    if(!name){ $("saveSetErr").textContent = "セット名を入力してください。"; return; }
+    if(draftQuestions.length===0){ $("saveSetErr").textContent = "問題を1つ以上追加してください。"; return; }
+    const sets = getCustomSets();
+    if(editingSetId){
+      const idx = sets.findIndex(s=>s.id===editingSetId);
+      if(idx!==-1){
+        sets[idx] = { id: editingSetId, name, questions: draftQuestions.slice() };
+      }else{
+        sets.push({ id: editingSetId, name, questions: draftQuestions.slice() });
+      }
+    }else{
+      sets.push({ id: Date.now().toString(36)+Math.random().toString(36).slice(2,6), name, questions: draftQuestions.slice() });
+    }
+    saveCustomSets(sets);
+    initCreateScreen();
+  });
+
+  function renderSavedSetList(){
+    const list = $("savedSetList");
+    const sets = getCustomSets();
+    list.innerHTML = "";
+    $("savedSetEmpty").classList.toggle("hidden", sets.length>0);
+    sets.forEach(set=>{
+      const row = document.createElement("div");
+      row.className = "saved-set-row";
+      row.innerHTML = `<span><span class="ssn">${escapeHtml(set.name)}</span><span class="ssc">${set.questions.length}問</span></span>
+        <span><button class="del post-set" style="margin-right:10px; color:var(--green-dark);">投稿する</button><button class="del edit-set" style="margin-right:10px;">編集</button><button class="del">削除</button></span>`;
+      row.querySelector(".post-set").addEventListener("click", ()=> postSetOnline(set));
+      row.querySelector(".edit-set").addEventListener("click", ()=>{
+        editingSetId = set.id;
+        draftQuestions = set.questions.map(q=>({ q:q.q, choices:q.choices.slice(), answer:q.answer }));
+        $("setNameInput").value = set.name;
+        $("saveSetBtn").textContent = "セットを更新する";
+        renderDraftList();
+        window.scrollTo({top: document.body.scrollHeight * 0.25, behavior:"smooth"});
+      });
+      row.querySelectorAll(".del")[1].addEventListener("click", ()=>{
+        if(confirm(`「${set.name}」を削除しますか？`)){
+          saveCustomSets(getCustomSets().filter(s=>s.id!==set.id));
+          if(editingSetId===set.id) initCreateScreen();
+          else renderSavedSetList();
+        }
+      });
+      list.appendChild(row);
+    });
+  }
+
+  // ---------- Community (online posting via Firebase Realtime Database) ----------
+  // 設定方法は「Firebaseセットアップ手順」を参照してください。
+  // firebaseConfig の中身を、自分のFirebaseプロジェクトの値に書き換えるだけで使えます。
+  const firebaseConfig = {
+    apiKey: "AIzaSyBJicxgkgwjasOs_YXRVlnDYdDZYL2oQ2I",
+    authDomain: "online-quiz-1bbf2.firebaseapp.com",
+    databaseURL: "https://online-quiz-1bbf2-default-rtdb.firebaseio.com",
+    projectId: "online-quiz-1bbf2",
+    storageBucket: "online-quiz-1bbf2.firebasestorage.app",
+    messagingSenderId: "1212882040",
+    appId: "1:1212882040:web:512e34cd34244d0841a18d"
+  };
+
+  let fbDb = null;
+  try{
+    if(firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY" &&
+       typeof firebase !== "undefined" && firebase.initializeApp){
+      firebase.initializeApp(firebaseConfig);
+      fbDb = firebase.database();
+    }
+  }catch(e){
+    console.warn("Firebase の初期化に失敗しました。firebaseConfig を確認してください。", e);
+    fbDb = null;
+  }
+
+  function hasOnlineStorage(){
+    return !!fbDb;
+  }
+
+  const communityCache = {}; // id -> 投稿データ（取り込み時に再取得しないためのキャッシュ）
+  const NOT_CONFIGURED_MSG = "オンライン投稿機能を使うには、コード内の firebaseConfig にFirebaseプロジェクトの設定を貼り付ける必要があります。";
+  const MY_POSTS_KEY = "nquiz-my-posts";
+  const ID_CHARS = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"; // 0,1,O,I,Lなど紛らわしい文字を除外
+
+  function getMyPostIds(){
+    try{ const raw = localStorage.getItem(MY_POSTS_KEY); return raw ? JSON.parse(raw) : []; }catch(e){ return []; }
+  }
+  function addMyPostId(id){
+    const ids = getMyPostIds();
+    if(!ids.includes(id)){ ids.push(id); try{ localStorage.setItem(MY_POSTS_KEY, JSON.stringify(ids)); }catch(e){} }
+  }
+  function removeMyPostId(id){
+    const ids = getMyPostIds().filter(x=>x!==id);
+    try{ localStorage.setItem(MY_POSTS_KEY, JSON.stringify(ids)); }catch(e){}
+  }
+  function generateShortId(){
+    let id = "";
+    for(let i=0;i<6;i++) id += ID_CHARS[Math.floor(Math.random()*ID_CHARS.length)];
+    return id;
+  }
+
+  async function postSetOnline(set){
+    if(!hasOnlineStorage()){
+      alert(NOT_CONFIGURED_MSG);
+      return;
+    }
+    if(!set.questions || set.questions.length===0){
+      alert("問題が1つもないセットは投稿できません。");
+      return;
+    }
+    const author = prompt("投稿者名を入力してください（空欄の場合は「名無し」になります）\n※投稿した名前と問題内容は、誰でも閲覧・取り込みできるようになります。", "");
+    if(author===null) return;
+    const authorName = author.trim().slice(0,20) || "名無し";
+    try{
+      let id = null;
+      for(let attempt=0; attempt<5 && !id; attempt++){
+        const candidate = generateShortId();
+        const existing = await fbDb.ref("posts/"+candidate).once("value");
+        if(!existing.exists()) id = candidate;
+      }
+      if(!id){ alert("IDの発行に失敗しました。もう一度お試しください。"); return; }
+      const postData = {
+        name: set.name.slice(0,60),
+        author: authorName,
+        questions: set.questions,
+        count: set.questions.length,
+        postedAt: firebase.database.ServerValue.TIMESTAMP
+      };
+      await fbDb.ref("posts/"+id).set(postData);
+      addMyPostId(id);
+      alert(`「${set.name}」を投稿しました！\n\nID: ${id}\nこのIDを伝えると、相手は「みんなの問題」画面のID検索から直接この問題を取り込めます。`);
+    }catch(e){
+      console.error(e);
+      alert("投稿中にエラーが発生しました。データベースのルール（読み書き権限）を確認してください。");
+    }
+  }
+
+  async function loadCommunityList(){
+    const listEl = $("communityList");
+    const loadingEl = $("communityLoading");
+    const emptyEl = $("communityEmpty");
+    const errEl = $("communityErr");
+    listEl.innerHTML = "";
+    errEl.textContent = "";
+    emptyEl.classList.add("hidden");
+    if(!hasOnlineStorage()){
+      loadingEl.classList.add("hidden");
+      errEl.textContent = NOT_CONFIGURED_MSG;
+      return;
+    }
+    loadingEl.classList.remove("hidden");
+    try{
+      const snap = await fbDb.ref("posts").orderByChild("postedAt").limitToLast(100).once("value");
+      loadingEl.classList.add("hidden");
+      const entries = [];
+      snap.forEach(child=>{
+        const v = child.val();
+        communityCache[child.key] = { id: child.key, ...v };
+        entries.push(communityCache[child.key]);
+      });
+      entries.reverse(); // 新しい順（プールとしての並び）
+      const picked = shuffle(entries).slice(0, 5);
+      renderCommunityEntries(picked);
+    }catch(e){
+      console.error(e);
+      loadingEl.classList.add("hidden");
+      errEl.textContent = "読み込みに失敗しました。通信環境やデータベースのルールを確認してください。";
+    }
+  }
+
+  function renderCommunityEntries(entries){
+    const listEl = $("communityList");
+    const emptyEl = $("communityEmpty");
+    listEl.innerHTML = "";
+    emptyEl.classList.add("hidden");
+    if(entries.length===0){ emptyEl.classList.remove("hidden"); return; }
+    const myIds = getMyPostIds();
+    entries.forEach(entry=>{
+      const row = document.createElement("div");
+      row.className = "saved-set-row";
+      const date = entry.postedAt ? new Date(entry.postedAt).toLocaleDateString("ja-JP") : "";
+      const isMine = myIds.includes(entry.id);
+      row.innerHTML = `<span><span class="ssn">${escapeHtml(entry.name)}</span><span class="ssc">ID:${entry.id}・${entry.count}問・${escapeHtml(entry.author)}・${date}${isMine ? "・自分の投稿" : ""}</span></span>
+        <span>${isMine ? `<button class="del cancel-post" style="margin-right:10px;">取り消す</button>` : ""}<button class="del import-post" style="color:var(--green-dark);">取り込む</button></span>`;
+      row.querySelector(".import-post").addEventListener("click", ()=> importCommunitySet(entry.id));
+      const cancelBtn = row.querySelector(".cancel-post");
+      if(cancelBtn) cancelBtn.addEventListener("click", ()=> cancelPost(entry.id));
+      listEl.appendChild(row);
+    });
+  }
+
+  async function cancelPost(id){
+    if(!confirm("この投稿を取り消しますか？取り消すと、他の人はこの問題セットを取り込めなくなります。")) return;
+    try{
+      await fbDb.ref("posts/"+id).remove();
+      removeMyPostId(id);
+      alert("投稿を取り消しました。");
+      loadCommunityList();
+    }catch(e){
+      console.error(e);
+      alert("取り消しに失敗しました。通信環境を確認してもう一度お試しください。");
+    }
+  }
+
+  function importCommunitySet(id){
+    const data = communityCache[id];
+    if(!data){ alert("この問題セットは見つかりませんでした。再読み込みしてください。"); return; }
+    const sets = getCustomSets();
+    sets.push({ id: Date.now().toString(36)+Math.random().toString(36).slice(2,6), name: data.name+"（投稿）", questions: data.questions, imported:true, author: data.author });
+    saveCustomSets(sets);
+    alert(`「${data.name}」を取り込みました。「問題を作る」画面や出題科目一覧から使えます。`);
+  }
+
+  async function searchCommunityById(){
+    const errEl = $("communityIdErr");
+    errEl.textContent = "";
+    if(!hasOnlineStorage()){
+      errEl.textContent = NOT_CONFIGURED_MSG;
+      return;
+    }
+    const id = $("communityIdInput").value.trim().toUpperCase();
+    if(!id){ errEl.textContent = "IDを入力してください。"; return; }
+    try{
+      const snap = await fbDb.ref("posts/"+id).once("value");
+      if(!snap.exists()){
+        errEl.textContent = "そのIDの問題セットは見つかりませんでした。";
+        $("communityList").innerHTML = "";
+        $("communityEmpty").classList.add("hidden");
+        return;
+      }
+      const v = snap.val();
+      communityCache[id] = { id, ...v };
+      renderCommunityEntries([communityCache[id]]);
+    }catch(e){
+      console.error(e);
+      errEl.textContent = "検索に失敗しました。通信環境を確認してください。";
+    }
+  }
+  $("communityIdSearchBtn").addEventListener("click", searchCommunityById);
+  $("communityIdInput").addEventListener("keydown", (e)=>{ if(e.key==="Enter") searchCommunityById(); });
+
+  $("communityRefreshBtn").addEventListener("click", ()=>{ $("communityIdInput").value=""; $("communityIdErr").textContent=""; loadCommunityList(); });
+
+  // ---------- init ----------
+  renderCatGrid();
+  renderCountSeg();
+  renderTimerToggle();
+  showScreen("mode");
+})();
+</script>
+</body>
+</html>
